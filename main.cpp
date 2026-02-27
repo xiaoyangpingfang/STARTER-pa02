@@ -70,7 +70,6 @@ int main(int argc, char** argv){
     prefixFile.close();
 
     vector<pair<string, Movie*>> bestMovies; // prefix -> best movie (nullptr if none)
-
     MovieCmp cmp;
 
     for (const string& prefix : prefixes) {
@@ -81,6 +80,7 @@ int main(int argc, char** argv){
             bestMovies.push_back({prefix, nullptr});
             continue;
         }
+
         vector<Movie> matches = node->movies;
         sort(matches.begin(), matches.end(), cmp);
 
@@ -88,6 +88,7 @@ int main(int argc, char** argv){
             cout << m.name << ", " << fixed << setprecision(1) << m.rating << "\n";
         }
         cout << "\n";
+
         bestMovies.push_back({prefix, new Movie(matches[0].name, matches[0].rating)});
     }
 
@@ -104,6 +105,83 @@ int main(int argc, char** argv){
 
     return 0;
 }
+
+/*
+Part 3: Time and Space Complexity Analysis
+Data Structure: Trie
+Each TrieNode at depth d (corresponding to a prefix of length d) stores a vector
+of ALL movies whose names start with that prefix.
+
+Part 3a: Time Complexity
+
+Assumptions: n movies already stored in Trie, m prefixes already in array.
+ 
+For each prefix of length |p| <= l:
+1. Traverse Trie to the prefix node:      O(l)
+2. Access the pre-stored movie list:       O(1)
+3. Sort the k matching movies:             O(k log k)
+4. Print the k movies:                     O(k)
+ 
+Cost per prefix:  O(l + k log k)
+Total for m prefixes: O(m * (l + k log k))
+
+Relevant parameters: m, l, k
+Final Big-O time complexity: O(m * (l + k log k))
+ 
+Because l (max movie name length) and k (matches per prefix) are both
+small constants relative to n, the runtime grows nearly linearly in m
+and is largely independent of n -- consistent with the near-flat
+benchmark curve observed for this implementation.
+ 
+Measured runtimes on CSIL using prefix_large.txt:
+input_20_random.csv:      11 ms
+input_100_random.csv:       8 ms
+input_1000_random.csv:     18 ms
+input_76920_random.csv:  2051 ms
+ 
+The first three datasets are small enough that runtime is dominated
+by constant factors and OS overhead. The jump at n=76920 reflects
+the cost of building the Trie and larger k values (more movies share
+prefixes), but per-prefix query cost remains sub-linear in n.
+ 
+Part 3b: Space Complexity
+ 
+Assumptions: n movies already stored, m prefixes already in array.
+ 
+Trie nodes:
+Each of the n movie names of average length l creates at most l nodes,
+giving at most O(n * l) nodes total (fewer with shared prefixes).
+ 
+Movie storage:
+Each movie is copied into every ancestor node along its path,
+so each movie appears in O(l) nodes. Total movie copies: O(n * l).
+ 
+Temporary sort buffer: O(k) per query, reused each iteration.
+
+Relevant parameters: n, l
+Final Big-O space complexity: O(n * l)
+
+Part 3c: Tradeoffs between Time and Space Complexity
+ 
+Design goal: LOW TIME COMPLEXITY.
+ 
+By storing the full list of matching movies at every internal Trie node,
+a prefix query requires only O(l) traversal plus O(k log k) sorting --
+no subtree traversal is needed at query time. This is the key optimization
+that keeps query cost independent of n.
+ 
+Was low space complexity also achieved?
+No. Storing movies at every ancestor node means each movie is duplicated
+O(l) times, yielding O(n * l) total space -- significantly more than the
+O(n) needed to store each movie once. For n=76920 and average name
+length ~20, this results in roughly 1.5 million Movie objects in the Trie.
+ 
+This is a deliberate space-for-time tradeoff: we accept higher memory
+usage to eliminate subtree traversal and achieve fast prefix queries.
+Low time complexity was the harder goal; it required the non-obvious
+insight of pre-materializing results at internal nodes rather than
+computing them lazily at query time.
+ */
 
 bool parseLine(string &line, string &movieName, double &movieRating) {
     int commaIndex = line.find_last_of(",");
