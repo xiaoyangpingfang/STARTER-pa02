@@ -1,6 +1,6 @@
-// Winter'24
+// Winter'26
 // Instructor: Diba Mirza
-// Student name: 
+// Student name: Xiaoyang Zhang
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -13,8 +13,8 @@
 #include <set>
 #include <queue>
 #include <sstream>
+#include <map>
 using namespace std;
-
 #include "utilities.h"
 #include "movies.h"
 
@@ -23,68 +23,92 @@ bool parseLine(string &line, string &movieName, double &movieRating);
 int main(int argc, char** argv){
     if (argc < 2){
         cerr << "Not enough arguments provided (need at least 1 argument)." << endl;
-        cerr << "Usage: " << argv[ 0 ] << " moviesFilename prefixFilename " << endl;
+        cerr << "Usage: " << argv[0] << " moviesFilename prefixFilename " << endl;
         exit(1);
     }
 
-    ifstream movieFile (argv[1]);
- 
+    ifstream movieFile(argv[1]);
     if (movieFile.fail()){
         cerr << "Could not open file " << argv[1];
         exit(1);
     }
-  
-    // Create an object of a STL data-structure to store all the movies
+
+    // Part 1: use map for alphabetical ordering
+    map<string, double> movieMap;
+    // Part 2: use Trie for fast prefix lookup
+    Trie trie;
 
     string line, movieName;
     double movieRating;
-    // Read each file and store the name and rating
-    while (getline (movieFile, line) && parseLine(line, movieName, movieRating)){
-            // Use std::string movieName and double movieRating
-            // to construct your Movie objects
-            // cout << movieName << " has rating " << movieRating << endl;
-            // insert elements into your data structure
-    }
 
+    while (getline(movieFile, line) && parseLine(line, movieName, movieRating)){
+        movieMap[movieName] = movieRating;
+        trie.insert(movieName, movieRating);
+    }
     movieFile.close();
 
     if (argc == 2){
-            //print all the movies in ascending alphabetical order of movie names
-            return 0;
+        // Part 1: print all movies in alphabetical order
+        for (const auto& kv : movieMap) {
+            cout << kv.first << ", " << fixed << setprecision(1) << kv.second << "\n";
+        }
+        return 0;
     }
 
-    ifstream prefixFile (argv[2]);
-
+    ifstream prefixFile(argv[2]);
     if (prefixFile.fail()) {
         cerr << "Could not open file " << argv[2];
         exit(1);
     }
 
     vector<string> prefixes;
-    while (getline (prefixFile, line)) {
+    while (getline(prefixFile, line)) {
         if (!line.empty()) {
             prefixes.push_back(line);
         }
     }
+    prefixFile.close();
 
-    //  For each prefix,
-    //  Find all movies that have that prefix and store them in an appropriate data structure
-    //  If no movie with that prefix exists print the following message
-    cout << "No movies found with prefix "<<"<replace with prefix>" << endl;
+    vector<pair<string, Movie*>> bestMovies; // prefix -> best movie (nullptr if none)
 
-    //  For each prefix,
-    //  Print the highest rated movie with that prefix if it exists.
-    cout << "Best movie with prefix " << "<replace with prefix>" << " is: " << "replace with movie name" << " with rating " << std::fixed << std::setprecision(1) << "replace with movie rating" << endl;
+    MovieCmp cmp;
+
+    for (const string& prefix : prefixes) {
+        TrieNode* node = trie.search(prefix);
+
+        if (!node || !node->hasMovies) {
+            cout << "No movies found with prefix " << prefix << "\n";
+            bestMovies.push_back({prefix, nullptr});
+            continue;
+        }
+        vector<Movie> matches = node->movies;
+        sort(matches.begin(), matches.end(), cmp);
+
+        for (const Movie& m : matches) {
+            cout << m.name << ", " << fixed << setprecision(1) << m.rating << "\n";
+        }
+        cout << "\n";
+        bestMovies.push_back({prefix, new Movie(matches[0].name, matches[0].rating)});
+    }
+
+    // Print best movies at end
+    for (auto& p : bestMovies) {
+        if (p.second == nullptr) {
+            continue;
+        }
+        cout << "Best movie with prefix " << p.first << " is: "
+             << p.second->name << " with rating "
+             << fixed << setprecision(1) << p.second->rating << "\n";
+        delete p.second;
+    }
 
     return 0;
 }
 
-/* Add your run time analysis for part 3 of the assignment here as commented block*/
-
 bool parseLine(string &line, string &movieName, double &movieRating) {
     int commaIndex = line.find_last_of(",");
     movieName = line.substr(0, commaIndex);
-    movieRating = stod(line.substr(commaIndex+1));
+    movieRating = stod(line.substr(commaIndex + 1));
     if (movieName[0] == '\"') {
         movieName = movieName.substr(1, movieName.length() - 2);
     }
